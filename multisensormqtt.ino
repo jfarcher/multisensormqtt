@@ -3,14 +3,20 @@
 #include <PubSubClient.h>
 #include <Wire.h>
 #include "TSL2561.h"
+#include "DHT.h"
 #include "config.h"
-int pirPin = 7;
+
+//Set Pins
+int DHTPIN = 6;
+int pirPin = 2;
 int val;
 
+#define DHTTYPE DHT11   // DHT 11 
+DHT dht(DHTPIN, DHTTYPE);
 TSL2561 tsl(TSL2561_ADDR_FLOAT); 
 // Update these with values suitable for your network.
 byte mac[]    = {  0xDE, 0xED, 0xBA, 0xFE, 0xFE, 0xED };
-
+char charSensorVal[20];  
 
 
 EthernetClient ethClient;
@@ -30,31 +36,55 @@ void getLum()
   delay(5000);
 
 }
+void getDHT(){
+float t = dht.readTemperature();
+float h = dht.readHumidity();
+char temp[10], hum[10]; 
+String ttt, hhh;
+int tempC = t;
+ttt = String(tempC);
+ttt.toCharArray(temp, 10);
 
+int humy = h; hhh = String(humy); hhh.toCharArray(hum, 10);
+client.publish(MQTT_TEMP_TOPIC, temp);
+
+client.publish(MQTT_HUM_TOPIC, hum);
+}
 void setup() {
+attachInterrupt(0,pir,HIGH);
+
   Ethernet.begin(mac);
+  byte ip = Ethernet.localIP();
   if(client.connect(CLIENT_ID)){
-  client.publish(MQTT_PIR_TOPIC,"Sensor UP");
+  client.publish(MQTT_ROOM_TOPIC,"PIR Sensor UP");
+  client.publish(MQTT_ROOM_TOPIC,"DHT Sensor Up");
   }
-   if (tsl.begin()){
-     client.publish("LS1","Sensor UP");
+  if (tsl.begin()){
+    client.publish(MQTT_ROOM_TOPIC,"LUM Sensor UP");
   }
+   
+  dht.begin();
+      
+   
 
 }
-
-void loop() {
-  val = digitalRead(pirPin); //read state of the PIR
+void pir(){
+    val = digitalRead(pirPin); //read state of the PIR
   
   if (val == LOW) {
     client.publish(MQTT_PIR_TOPIC, "0");
-    delay(1000);
+    
   }
   else {
     client.publish(MQTT_PIR_TOPIC,"1");
-  delay(3000);
+  
   }
-  
-  
+}
+
+void loop() {
+
+     getDHT();
+     getLum();
   client.loop();
-   getLum();
+delay(500);
 }
